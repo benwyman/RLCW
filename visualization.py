@@ -58,6 +58,10 @@ def print_training_stats(trackers, q_table):
         if count > 0:
             print(f"Button at ({x}, {y}) pressed {count} times")
 
+    print("\nBonus Star Collection:")
+    for (x, y), count in trackers["bonus_star_tracker"].items():
+        print(f"Bonus at ({x}, {y}) collected {count} times")
+
     # Q-table without sorting
     q_data_for_df = {}
     for state, actions in q_table.items():

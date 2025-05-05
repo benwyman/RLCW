@@ -1,8 +1,9 @@
 from collections import defaultdict
 from grid_utils import unmark_block
+from visualization import visualize_grid
 import random
 
-LEDGE_TILES = {'_', '⤓', '↥', '⬒'}
+LEDGE_TILES = {'_', '⤓', '↥', '⬒', '☆'}
 VALID_MOVE_TILES = {'O', '_', '\\', '/', '⤓', '↥', '⬒', '█', '^', 'Φ'}
 
 def choose_action(state, q_table, epsilon, width, grid):
@@ -133,7 +134,8 @@ def drop_ball(
     q_table,
     trackers,
     # optional extras for DQN
-    extra=None
+    extra=None,
+    visualize=False
 ):
     """
     Unified drop function for both Q-learning and DQN.
@@ -161,6 +163,7 @@ def drop_ball(
     """
     x, y = start_x, height - 1
     pressed_buttons = set()
+    stars_collected = set()
 
     if mode == "q":
         state_action_pairs = []
@@ -170,6 +173,9 @@ def drop_ball(
     reward = 0
 
     while y > 0:
+        if visualize:
+            visualize_grid(grid, width, height, ball_position=(x, y), buckets=buckets)
+
         tile = grid.get((x, y), ' ')
         is_ledge = tile in LEDGE_TILES
         is_block = tile == '█' or (tile in {'⤓', '↥'} and (grid.get((x - 1, y)) == '█' or grid.get((x + 1, y)) == '█'))
@@ -213,15 +219,29 @@ def drop_ball(
                 last_action = action
                 extra["total_decision_steps"][0] += 1
 
-            # Button
+            # if the agent lands on a button tile
             if grid.get((action, y)) == '⬒':
-                grid[(action, y)] = '_'
-                unmark_block(grid, 5, trackers["blocks"])
-                trackers["button_tracker"][(action, y)] += 1
-                pressed_buttons.add((action, y))
-                x = action
+                grid[(action, y)] = '_'  # press the button by converting it to a normal ledge
+
+                button_to_block = trackers.get("button_to_block_map", {})  # get map of button positions to block row Y values
+                row_y = button_to_block.get((action, y))  # find which block row this button should unmark
+                if row_y is not None:
+                    unmark_block(grid, row_y, trackers["blocks"])  # restore the original tiles in that block row
+
+                trackers["button_tracker"][(action, y)] += 1  # increment press count for this button
+                pressed_buttons.add((action, y))  # record that this button was pressed in the current episode
+                x = action  # move the ball to the button's column
+                trackers["ledge_tracker"][state] -= 1  # undo visit count to this ledge since ball stays on the row
+                continue  # re-evaluate tile after button logic (don't fall yet)
+            
+            # Bonus Star
+            if grid.get((action, y)) == '☆':
+                trackers["bonus_star_tracker"][(action, y)] += 1
+                grid[(action, y)] = '_'  # convert to normal ledge
+                pressed_buttons.add((action, y))  # optional for state tracking
+                stars_collected.add((action, y))  # track that it was picked up
                 trackers["ledge_tracker"][state] -= 1
-                continue
+                continue  # stay on same row
 
             # Pipe
             if (action, y) in trackers["pipes"]:
@@ -247,7 +267,7 @@ def drop_ball(
         # Spike
         if tile == '^':
             trackers["spike_tracker"][y] += 1
-            reward = 0
+            reward -= -1
             done = True
             if mode == "dqn" and last_state is not None:
                 extra["replay_buffer"].append(extra["Experience"](last_state, last_action, reward, None, done))
@@ -255,7 +275,7 @@ def drop_ball(
                     extra["learn"](grid, width, extra["learning_rate"], extra["discount_factor"])
                     if extra["total_decision_steps"][0] % extra["target_update_frequency"] == 0:
                         extra["update_target_network"](q_table, extra["q_table_target"], extra["soft_update_alpha"])
-            break
+            return (state_action_pairs, reward, stars_collected) if mode == "q" else (reward, -1, stars_collected)
 
         # Diagonal fall
         moves = get_valid_diagonal_moves(grid, x, y, width, height)
@@ -268,9 +288,9 @@ def drop_ball(
     bucket = buckets.get(x, -1)
     if bucket != -1:
         trackers["bucket_tracker"][bucket] += 1
-        reward = 1 if bucket == target_bucket else 0
-    else:
-        reward = 0
+        if bucket == target_bucket:
+            reward += 1 * (3 ** len(stars_collected))
+
 
     if mode == "dqn" and last_state is not None:
         done = True
@@ -280,7 +300,7 @@ def drop_ball(
             if extra["total_decision_steps"][0] % extra["target_update_frequency"] == 0:
                 extra["update_target_network"](q_table, extra["q_table_target"], extra["soft_update_alpha"])
 
-    return (state_action_pairs, reward) if mode == "q" else (reward, bucket)
+    return (state_action_pairs, reward, stars_collected) if mode == "q" else (reward, bucket, stars_collected)
 
 def initialize_trackers(include_q_table=False):
     # special maps
@@ -294,6 +314,8 @@ def initialize_trackers(include_q_table=False):
     pipe_tracker = defaultdict(int)  # maps (x, y) of pipe entry/exit -> number of uses
     button_tracker = defaultdict(int)  # maps (x, y) of button tile -> number of presses
     block_row_tracker = defaultdict(int)  # maps (block_row_y, pressed_buttons) -> number of visits
+    button_to_block_map = {}  # (x, y) of button -> row_y it unmarks
+    bonus_star_tracker = defaultdict(int)  # (x, y) of bonus star -> times collected
 
     # shared dictionary for use in board building and stats
     trackers = {
@@ -305,6 +327,8 @@ def initialize_trackers(include_q_table=False):
         "spike_tracker": spike_tracker,
         "ledge_tracker": ledge_tracker,
         "block_row_tracker": block_row_tracker,
+        "button_to_block_map": button_to_block_map,
+        "bonus_star_tracker": bonus_star_tracker,
     }
 
     return trackers

@@ -8,12 +8,14 @@ def generate_grid(width, height):
                 grid[(x, height - 1 - y)] = ' '  # empty spaces between pegs
     return grid
 
-def mark_ledge(grid, start_x, length, ledge_y, button_tracker, ledge_tracker, button_x=None):
+def mark_ledge(grid, start_x, length, ledge_y, button_tracker, ledge_tracker, button_x=None, block_row_y=None, button_to_block_map=None):
     # place a horizontal ledge starting at start_x on row ledge_y
     for x in range(start_x, start_x + length): 
         if x == button_x:
             grid[(x, ledge_y)] = '⬒'  # mark a special button tile
             button_tracker[(x, ledge_y)]  # initialize button in tracker
+            if button_to_block_map is not None and block_row_y is not None:
+                button_to_block_map[(x, ledge_y)] = block_row_y
         else:
             grid[(x, ledge_y)] = '_'  # normal ledge tile
     ledge_tracker[((start_x, ledge_y), frozenset())] # initialize ledge visit tracker
