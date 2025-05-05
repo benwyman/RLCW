@@ -57,7 +57,7 @@ def choose_action(state, q_table, epsilon, width, grid):
         return random.choice(best_actions) # choose randomly among best actions
 
 # find the state key ((start_x, y), frozenset(buttons)) for the ledge the ball is currently on
-def find_ledge_state_key(x, y, width, grid, pressed_buttons):
+def find_ledge_state_key(x, y, grid, pressed_buttons):
     # search left from current x to find the start of the connected ledge segment
     ledge_start_x = x
     while ledge_start_x >= 0 and grid.get((ledge_start_x, y)) in LEDGE_TILES:
@@ -92,10 +92,10 @@ def get_valid_diagonal_moves(grid, x, y, width, height):
             moves.append((nx, ny))
     return moves
 
-def identify_decision_state(x, y, grid, width, pressed_buttons):
+def identify_decision_state(x, y, grid, pressed_buttons):
     tile = grid.get((x, y), '')
     if tile in LEDGE_TILES:
-        return find_ledge_state_key(x, y, width, grid, frozenset(pressed_buttons))
+        return find_ledge_state_key(x, y, grid, frozenset(pressed_buttons))
     if tile == '█' or (tile in {'⤓', '↥'} and (grid.get((x - 1, y)) == '█' or grid.get((x + 1, y)) == '█')):
         return (('block', y), frozenset(pressed_buttons))
     return None
@@ -181,7 +181,7 @@ def drop_ball(
         is_block = tile == '█' or (tile in {'⤓', '↥'} and (grid.get((x - 1, y)) == '█' or grid.get((x + 1, y)) == '█'))
 
         if is_ledge or is_block:
-            state = identify_decision_state(x, y, grid, width, pressed_buttons)
+            state = identify_decision_state(x, y, grid, pressed_buttons)
 
             if state is None:
                 if mode == "dqn" and last_state is not None:
