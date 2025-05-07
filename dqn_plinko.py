@@ -35,7 +35,7 @@ class QNetwork(nn.Module):
 learning_rate = 0.0001               # optimizer learning rate
 discount_factor = 0.99              # gamma: importance of future rewards
 exploration_rate = 1.0              # epsilon: initial exploration probability
-exploration_decay = 0.995           # decay per episode
+exploration_decay = 0.99            # decay per episode
 min_exploration = 0.01              # lower bound for epsilon
 episodes = 1000                     # total training episodes
 initial_free_exploration = 0        # episode cutoff for exploration decay

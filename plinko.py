@@ -14,12 +14,12 @@ most_recent_rewards = deque(maxlen=100)
 total_stars_collected = 0
 
 # q-learning parameters
-learning_rate = 0.1
+learning_rate = 0.001
 discount_factor = 0.99
 exploration_rate = 1.0  # start fully exploratory
 exploration_decay = 0.99  # reduce randomness over time
 min_exploration = 0.01  # smallest possible exploration rate
-episodes = 10000  # number of training episodes
+episodes = 500  # number of training episodes
 initial_free_exploration = 0
 
 # train agent
