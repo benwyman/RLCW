@@ -194,9 +194,7 @@ for episode in range(episodes):
     losses = []
     if len(replay_buffer) > batch_size:
         for _ in range(2):  # optional: increase for more updates
-            print("      >> Learning...", flush=True)
             loss = learn(grid, width, learning_rate, discount_factor, episode)
-            print(f"      << Finished learning. Loss: {loss}", flush=True)
             if loss is not None:
                 losses.append(loss)
 

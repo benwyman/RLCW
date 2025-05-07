@@ -10,7 +10,14 @@ from torch import nn
 LEDGE_TILES = {'_', '⤓', '↥', '⬒', '☆'}
 VALID_MOVE_TILES = {'O', '_', '\\', '/', '⤓', '↥', '⬒', '█', '^', 'Φ'}
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-step_penalty = 0.01
+
+def get_step_penalty(episode):
+    if episode < 300:
+        return 0.001
+    elif episode < 600:
+        return 0.003
+    else:
+        return 0.005
 
 # === Action Selection ===
 def choose_action(state, model, epsilon, width, grid):
@@ -92,7 +99,7 @@ def identify_decision_state(x, y, grid, pressed_buttons):
 
 # === Block Row Logic ===
 
-def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_model, pressed_buttons, extra):
+def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_model, pressed_buttons, extra, reward):
     """
     Handles movement and decision logic when the agent is on a block row.
 
@@ -108,7 +115,8 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_model, pr
         action = choose_action(state, q_model, exploration_rate, width, grid)
 
         x = action
-        reward = -step_penalty
+        step_penalty = get_step_penalty(extra["episode"])
+        reward -= step_penalty
         log_transition(state, action, reward, state, extra)
         maybe_learn(extra, q_model, width, grid)
 
@@ -117,7 +125,7 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_model, pr
             tracker_dict["pipe_tracker"][(x, y)] += 1
             return destination[0], destination[1]
         
-        return x, y
+        return x, y, reward
 
 # === State Encoding for Neural Network ===
 def encode_state(state, width):
@@ -212,7 +220,7 @@ def drop_ball(
                     "block_row_tracker": trackers["block_row_tracker"],
                     "pipe_tracker": trackers["pipe_tracker"],
                     "pipes": trackers["pipes"]
-                }, q_model, pressed_buttons, extra)
+                }, q_model, pressed_buttons, extra, reward)
                 continue
 
             # log visit
@@ -221,6 +229,7 @@ def drop_ball(
             # DQN logic
             action = choose_action(state, q_model, exploration_rate, width, grid)
             if last_state is not None:
+                step_penalty = get_step_penalty(extra["episode"])
                 reward -= step_penalty  # step penalty
                 log_transition(last_state, last_action, reward, state, extra)
                 maybe_learn(extra, q_model, width, grid)
