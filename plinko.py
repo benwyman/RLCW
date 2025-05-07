@@ -17,14 +17,14 @@ total_stars_collected = 0
 learning_rate = 0.1
 discount_factor = 0.99
 exploration_rate = 1.0  # start fully exploratory
-exploration_decay = 0.9999  # reduce randomness over time
+exploration_decay = 0.99  # reduce randomness over time
 min_exploration = 0.01  # smallest possible exploration rate
-episodes = 1000  # number of training episodes
+episodes = 10000  # number of training episodes
 initial_free_exploration = 0
 
 # train agent
 target_bucket = 2  # the bucket the agent should aim for
-map_name = "default"
+map_name = "hard"
 
 grid, buckets, width, height = build_board(map_name, trackers)
 
@@ -71,7 +71,7 @@ for episode in range(episodes):
         exploration_rate = max(min_exploration, exploration_rate * exploration_decay)
 
     # episode summary
-    # print(f"[Episode {episode+1}] Reward: {reward} | Bucket: {final_bucket} | Stars: {len(stars_collected)} | Steps: {steps_taken} | ε: {exploration_rate:.2f}", flush=True)
+    print(f"[Episode {episode+1}] Reward: {reward} | Bucket: {final_bucket} | Stars: {len(stars_collected)} | Steps: {steps_taken} | ε: {exploration_rate:.2f}", flush=True)
 
     # print progress
     if (episode + 1) % 100 == 0:

@@ -96,15 +96,15 @@ def identify_decision_state(x, y, grid, pressed_buttons):
     return None
 
 def get_step_penalty(episode):
-    """
+    # """
     if episode < 300:
         return 0.001
     elif episode < 600:
         return 0.003
     else:
         return 0.005
-    """
-    return 0
+    # """
+    # return 0
 
 
 def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pressed_buttons, episode, reward, state_action_pairs=None):
@@ -234,8 +234,6 @@ def drop_ball(
                 grid[(action, y)] = '_'  # convert to normal ledge
                 pressed_buttons.add((action, y))  # optional for state tracking
                 stars_collected.add((action, y))  # track that it was picked up
-                print(f"⭐ Star collected at ({action}, {y}) on step {step}")
-
                 reward += 10
                 trackers["ledge_tracker"][state] -= 1
                 continue  # stay on same row

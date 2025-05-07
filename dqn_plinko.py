@@ -32,7 +32,7 @@ class QNetwork(nn.Module):
         return self.fc3(torch.relu(self.fc2(torch.relu(self.fc1(x)))))
 
 # === Training Hyperparameters ===
-learning_rate = 0.001               # optimizer learning rate
+learning_rate = 0.0001               # optimizer learning rate
 discount_factor = 0.99              # gamma: importance of future rewards
 exploration_rate = 1.0              # epsilon: initial exploration probability
 exploration_decay = 0.995           # decay per episode
