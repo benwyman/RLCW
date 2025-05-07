@@ -70,7 +70,7 @@ def mark_block(grid, width, row_y, blocks):
     blocks[row_y] = {}  # store original row tiles
     for x in range(width):
         current_tile = grid.get((x, row_y), ' ')
-        if current_tile not in {'↥', 'Φ', '⤓', '|'}:  # skip if tile is part of a pipe
+        if current_tile not in {'↥'}:  # skip if tile is part of an up pipe
             blocks[row_y][x] = current_tile  # remember what was here
             grid[(x, row_y)] = '█'  # mark block tile
 
@@ -79,8 +79,11 @@ def unmark_block(grid, row_y, blocks):
         return  # nothing to unmark
 
     for x, original_char in blocks[row_y].items():
-        grid[(x, row_y)] = original_char  # restore original tile
-    del blocks[row_y]  # remove from block tracker
+        if original_char in {'↥', '⤓'}:
+            grid[(x, row_y)] = original_char  # restore pipe ends
+        else:
+            grid[(x, row_y)] = '_'  # convert everything else to a ledge
+    del blocks[row_y]
 
 def mark_buckets(width, num_buckets):
     buckets = {}  # maps x to bucket index

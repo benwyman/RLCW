@@ -29,11 +29,6 @@ def choose_action(state, q_table, epsilon, width, grid):
     for act in available_actions:
         if act not in current_q_actions:
              current_q_actions[act] = 0.0
-    
-    # if no actions were available or initialized, fallback
-    if not available_actions:
-         print(f"Error: No available actions determined for state {state}. Choosing random column.")
-         return random.choice(list(range(width)))
 
     if random.random() < epsilon:
         return random.choice(available_actions)  # explore
@@ -183,12 +178,6 @@ def drop_ball(
         if is_ledge or is_block:
             state = identify_decision_state(x, y, grid, pressed_buttons)
 
-            if state is None:
-                if mode == "dqn" and last_state is not None:
-                    # log final failed transition
-                    extra["replay_buffer"].append(extra["Experience"](last_state, last_action, 0, None, True))
-                break
-
             if isinstance(state[0], tuple) and state[0][0] == "block":
                 x, y = handle_blocks(grid, x, y, width, exploration_rate, {
                     "block_row_tracker": trackers["block_row_tracker"],
@@ -267,7 +256,7 @@ def drop_ball(
         # Spike
         if tile == '^':
             trackers["spike_tracker"][y] += 1
-            reward -= -1
+            reward -= 1
             done = True
             if mode == "dqn" and last_state is not None:
                 extra["replay_buffer"].append(extra["Experience"](last_state, last_action, reward, None, done))

@@ -80,13 +80,13 @@ def build_board(name, trackers):
         grid = generate_grid(width, height)
 
         # Ledges
-        mark_ledge(grid, 23, 2, 98, button_tracker, ledge_tracker)
+        mark_ledge(grid, 22, 3, 98, button_tracker, ledge_tracker)
         mark_ledge(grid, 0, 5, 95, button_tracker, ledge_tracker)
         mark_ledge(grid, 10, 6, 95, button_tracker, ledge_tracker)
-        mark_ledge(grid, 3, 8, 91, button_tracker, ledge_tracker)
+        mark_ledge(grid, 3, 11, 91, button_tracker, ledge_tracker)
         mark_ledge(grid, 15, 9, 89, button_tracker, ledge_tracker)
         mark_ledge(grid, 2, 5, 85, button_tracker, ledge_tracker, button_x=4, block_row_y=80, button_to_block_map=trackers["button_to_block_map"])
-        mark_ledge(grid, 15, 5, 83, button_tracker, ledge_tracker)
+        mark_ledge(grid, 12, 8, 83, button_tracker, ledge_tracker)
         mark_ledge(grid, 6, 4, 80, button_tracker, ledge_tracker)
         mark_ledge(grid, 0, 8, 77, button_tracker, ledge_tracker)
         mark_ledge(grid, 10, 5, 75, button_tracker, ledge_tracker, button_x=14, block_row_y=70, button_to_block_map=trackers["button_to_block_map"])
@@ -95,7 +95,7 @@ def build_board(name, trackers):
         mark_ledge(grid, 4, 6, 67, button_tracker, ledge_tracker)
         mark_ledge(grid, 14, 7, 65, button_tracker, ledge_tracker)
         mark_ledge(grid, 0, 4, 63, button_tracker, ledge_tracker)
-        mark_ledge(grid, 10, 6, 61, button_tracker, ledge_tracker, button_x=14, block_row_y=60, button_to_block_map=trackers["button_to_block_map"])
+        mark_ledge(grid, 10, 6, 62, button_tracker, ledge_tracker, button_x=14, block_row_y=60, button_to_block_map=trackers["button_to_block_map"])
         mark_ledge(grid, 20, 4, 59, button_tracker, ledge_tracker)
         mark_ledge(grid, 1, 6, 56, button_tracker, ledge_tracker)
         mark_ledge(grid, 14, 7, 55, button_tracker, ledge_tracker)
@@ -121,7 +121,8 @@ def build_board(name, trackers):
         mark_ledge(grid, 14, 5, 8, button_tracker, ledge_tracker)
         mark_ledge(grid, 0, 4, 6, button_tracker, ledge_tracker)
         mark_ledge(grid, 7, 4, 4, button_tracker, ledge_tracker)
-        mark_ledge(grid, 20, 4, 3, button_tracker, ledge_tracker)
+        mark_ledge(grid, 20, 4, 3, button_tracker, ledge_tracker, button_x=23, block_row_y=1, button_to_block_map=trackers["button_to_block_map"])
+        mark_ledge(grid, 2, 5, 27, button_tracker, ledge_tracker)
         mark_ledge(grid, 0, 4, 2, button_tracker, ledge_tracker)
         mark_ledge(grid, 8, 5, 1, button_tracker, ledge_tracker)
         mark_ledge(grid, 18, 4, 1, button_tracker, ledge_tracker)
@@ -134,17 +135,16 @@ def build_board(name, trackers):
         mark_slide(grid, 18, 41, 5, "backward")   
         mark_slide(grid, 10, 23, 4, "forward")    
 
+        """
         # Spikes
-        mark_spike(grid, 7, 3, 38, spike_tracker)
+        mark_spike(grid, 4, 1, 76, spike_tracker) 
+        mark_spike(grid, 6, 1, 66, spike_tracker)  
+        mark_spike(grid, 3, 1, 55, spike_tracker)   
+        mark_spike(grid, 4, 1, 46, spike_tracker) 
+        mark_spike(grid, 2, 1, 36, spike_tracker)  
         mark_spike(grid, 16, 1, 20, spike_tracker)
-
-        # Spikes (additional)
-        mark_spike(grid, 3, 3, 76, spike_tracker)   # under ledge at 77
-        mark_spike(grid, 7, 3, 66, spike_tracker)   # under ledge at 67
-        mark_spike(grid, 3, 2, 55, spike_tracker)   # under ledge at 56
-        mark_spike(grid, 4, 1, 46, spike_tracker)  # under ledge at 47
-        mark_spike(grid, 1, 2, 36, spike_tracker)   # under ledge at 37
-        mark_spike(grid, 9, 2, 16, spike_tracker)   # under ledge at 18
+        mark_spike(grid, 14, 1, 16, spike_tracker)   
+        """
 
         # Pipes: button ledges to block rows
         mark_pipe(grid, 10, 91, 80, pipes, pipe_tracker)
@@ -156,12 +156,17 @@ def build_board(name, trackers):
         # More Pipes
         mark_pipe(grid, 23, 98, 89, pipes, pipe_tracker)
         mark_pipe(grid, 18, 89, 83, pipes, pipe_tracker)
+        mark_pipe(grid, 13, 80, 75, pipes, pipe_tracker)
+        mark_pipe(grid, 13, 70, 62, pipes, pipe_tracker)
         mark_pipe(grid, 20, 59, 55, pipes, pipe_tracker)
+        mark_pipe(grid, 8, 60, 53, pipes, pipe_tracker)
         mark_pipe(grid, 16, 55, 50, pipes, pipe_tracker)
         mark_pipe(grid, 16, 55, 50, pipes, pipe_tracker)
         mark_pipe(grid, 16, 55, 50, pipes, pipe_tracker)
         mark_pipe(grid, 18, 44, 40, pipes, pipe_tracker)
+        mark_pipe(grid, 12, 45, 35, pipes, pipe_tracker)
         mark_pipe(grid, 20, 40, 31, pipes, pipe_tracker)
+        mark_pipe(grid, 6, 25, 12, pipes, pipe_tracker)
         mark_pipe(grid, 2, 18, 6, pipes, pipe_tracker)
         mark_pipe(grid, 0, 6, 2, pipes, pipe_tracker)
         mark_pipe(grid, 12, 17, 1, pipes, pipe_tracker)
@@ -173,6 +178,7 @@ def build_board(name, trackers):
         mark_block(grid, width, 60, blocks)
         mark_block(grid, width, 45, blocks)
         mark_block(grid, width, 25, blocks)
+        mark_block(grid, width, 1, blocks)
 
         # Bonus Stars (optional rewards)
         bonus_positions = [(24, 98), (0, 74), (0, 63), (24, 59), (19, 44), (0, 18)]
