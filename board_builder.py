@@ -65,8 +65,8 @@ def build_board(name, trackers):
         mark_slide(grid, 14, 16, 4, "backward")
         mark_slide(grid, 0, 12, 2, "forward")
 
-        mark_spike(grid, 5, 4, 18, spike_tracker)
-        mark_spike(grid, 7, 2, 6, spike_tracker)
+        mark_spike(grid, 6, 1, 18, spike_tracker)
+        mark_spike(grid, 8, 1, 6, spike_tracker)
 
         mark_pipe(grid, 6, 27, 24, pipes, pipe_tracker)
         mark_pipe(grid, 9, 24, 19, pipes, pipe_tracker)
