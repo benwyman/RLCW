@@ -11,14 +11,6 @@ LEDGE_TILES = {'_', '⤓', '↥', '⬒', '☆'}
 VALID_MOVE_TILES = {'O', '_', '\\', '/', '⤓', '↥', '⬒', '█', '^', 'Φ'}
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def get_step_penalty(episode):
-    if episode < 300:
-        return 0.001
-    elif episode < 600:
-        return 0.003
-    else:
-        return 0.005
-
 # === Action Selection ===
 def choose_action(state, model, epsilon, width, grid):
     # determine available actions
@@ -115,8 +107,6 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_model, pr
         action = choose_action(state, q_model, exploration_rate, width, grid)
 
         x = action
-        step_penalty = get_step_penalty(extra["episode"])
-        reward -= step_penalty
         log_transition(state, action, reward, state, extra)
         maybe_learn(extra, q_model, width, grid)
 
@@ -200,6 +190,10 @@ def drop_ball(
     pressed_buttons = set()
     stars_collected = set()
 
+    # Fake 10 stars if none exist on the board (e.g. default map)
+    if all(grid.get(pos) != '☆' for pos in grid):
+        stars_collected.update({("fake", i) for i in range(10)})
+
     last_state, last_action = None, None
     done = False
     reward = 0
@@ -229,8 +223,6 @@ def drop_ball(
             # DQN logic
             action = choose_action(state, q_model, exploration_rate, width, grid)
             if last_state is not None:
-                step_penalty = get_step_penalty(extra["episode"])
-                reward -= step_penalty  # step penalty
                 log_transition(last_state, last_action, reward, state, extra)
                 maybe_learn(extra, q_model, width, grid)
             last_state = state
@@ -291,9 +283,9 @@ def drop_ball(
         # Spike
         if tile == '^':
             trackers["spike_tracker"][y] += 1
-            reward -= 10
+            reward -= 1
             done = True
-            print(f"⚠️ Spike hit at ({x}, {y}) — applying penalty {reward}", flush=True)
+            # print(f"Spike hit at ({x}, {y}) — applying penalty {reward}", flush=True)
             log_transition(last_state, last_action, reward, None, extra, done=True, boost=True)
             maybe_learn(extra, q_model, width, grid)
             return (reward, -1, stars_collected)
@@ -311,7 +303,7 @@ def drop_ball(
         reward += 0
         trackers["bucket_tracker"][bucket] += 1
         if bucket == target_bucket:
-           reward += 0
+           reward += 1
 
     done = True
     log_transition(last_state, last_action, reward, None, extra, done=True)

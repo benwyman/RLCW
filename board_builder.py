@@ -135,7 +135,7 @@ def build_board(name, trackers):
         mark_slide(grid, 18, 41, 5, "backward")   
         mark_slide(grid, 10, 23, 4, "forward")    
 
-        """
+        
         # Spikes
         mark_spike(grid, 4, 1, 76, spike_tracker) 
         mark_spike(grid, 6, 1, 66, spike_tracker)  
@@ -144,7 +144,7 @@ def build_board(name, trackers):
         mark_spike(grid, 2, 1, 36, spike_tracker)  
         mark_spike(grid, 16, 1, 20, spike_tracker)
         mark_spike(grid, 14, 1, 16, spike_tracker)   
-        """
+        
 
         # Pipes: button ledges to block rows
         mark_pipe(grid, 10, 91, 80, pipes, pipe_tracker)
@@ -184,7 +184,7 @@ def build_board(name, trackers):
         bonus_positions = [(24, 98), (0, 74), (0, 63), (24, 59), (19, 44), (0, 18)]
 
         for x, y in bonus_positions:
-            grid[(x, y)] = '☆'
+            # grid[(x, y)] = '☆'
             if (x, y) not in trackers["bonus_star_tracker"]:
                 trackers["bonus_star_tracker"][(x, y)] = 0
 

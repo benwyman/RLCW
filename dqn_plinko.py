@@ -32,7 +32,7 @@ class QNetwork(nn.Module):
         return self.fc3(torch.relu(self.fc2(torch.relu(self.fc1(x)))))
 
 # === Training Hyperparameters ===
-learning_rate = 0.0001               # optimizer learning rate
+learning_rate = 0.001               # optimizer learning rate
 discount_factor = 0.99              # gamma: importance of future rewards
 exploration_rate = 1.0              # epsilon: initial exploration probability
 exploration_decay = 0.99            # decay per episode
@@ -48,10 +48,11 @@ soft_update_alpha = 0.1             # tau: target network smoothing factor
 # === Prioritized Experience Replay Setup ===
 Experience = namedtuple("Experience", ["state", "action", "reward", "next_state", "done"])
 replay_buffer = PrioritizedReplayBuffer(capacity=10000)  # custom buffer with priorities
-batch_size = 64                    # number of experiences to sample
+batch_size = 32                    # number of experiences to sample
 
 # === Training Objectives ===
 target_bucket = 2                  # desired goal bucket
+map_name = "default"
 
 # === Initialize Stats and Environment ===
 trackers = initialize_trackers()   # global stat trackers for board elements
@@ -62,7 +63,7 @@ total_decision_steps = [0]         # decision step count (mutable list)
 episode_losses = []                # average loss per episode (for plotting)
 
 # === Initialize Game Board ===
-grid, buckets, width, height = build_board("hard", trackers)
+grid, buckets, width, height = build_board(map_name, trackers)
 
 # === Define Neural Network Dimensions ===
 input_dim = 3 + (width * 5)         # [type, x, y] + flattened button vector
@@ -138,20 +139,18 @@ def update_target_network(online_model, target_model, alpha):
 def should_learn():
     return total_decision_steps[0] % update_frequency == 0
 
-grid, buckets, width, height = build_board("hard", trackers)
+grid, buckets, width, height = build_board(map_name, trackers)
 start_x = random.randint(0, width - 1)
 visualize_grid(grid, width, height, ball_position=(start_x, height - 1), buckets=buckets)
 
 # === Training Loop ===
 for episode in range(episodes):
     # regenerate a fresh board per episode
-    grid, buckets, width, height = build_board("hard", trackers)
+    grid, buckets, width, height = build_board(map_name, trackers)
     start_x = random.randint(0, width - 1)
 
     # track how many steps were taken this episode
     steps_before = total_decision_steps[0]
-
-    print(f"=== [Episode {episode + 1}] Starting episode logic...", flush=True)
 
     # drop the ball and get result of episode
     episode_final_reward, final_bucket, stars_collected = drop_ball(
@@ -182,8 +181,6 @@ for episode in range(episodes):
         visualize=False  # set True to debug
     )
 
-    print(f"=== [Episode {episode + 1}] Finished episode logic.", flush=True)
-
     # post-episode stats
     steps_taken = total_decision_steps[0] - steps_before
     total_stars_collected += len(stars_collected)
@@ -193,7 +190,7 @@ for episode in range(episodes):
     # perform batch learning steps after episode
     losses = []
     if len(replay_buffer) > batch_size:
-        for _ in range(2):  # optional: increase for more updates
+        for _ in range(5):  # optional: increase for more updates
             loss = learn(grid, width, learning_rate, discount_factor, episode)
             if loss is not None:
                 losses.append(loss)

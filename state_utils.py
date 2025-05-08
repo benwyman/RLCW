@@ -95,18 +95,6 @@ def identify_decision_state(x, y, grid, pressed_buttons):
         return (('block', y), frozenset(pressed_buttons))
     return None
 
-def get_step_penalty(episode):
-    # """
-    if episode < 300:
-        return 0.001
-    elif episode < 600:
-        return 0.003
-    else:
-        return 0.005
-    # """
-    # return 0
-
-
 def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pressed_buttons, episode, reward, state_action_pairs=None):
     """
     Handles movement and decision logic when the agent is on a block row.
@@ -122,7 +110,6 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pr
 
     while True:
         action = choose_action(state, q_table, exploration_rate, width, grid)
-        reward -= get_step_penalty(episode)
 
         if state_action_pairs is not None:
             state_action_pairs.append((state, action))
@@ -212,7 +199,6 @@ def drop_ball(
             # Q-learning: record state
             action = choose_action(state, q_table, exploration_rate, width, grid)
             state_action_pairs.append((state, action))
-            reward -= get_step_penalty(episode)
 
             # if the agent lands on a button tile
             if grid.get((action, y)) == '⬒':
@@ -262,7 +248,7 @@ def drop_ball(
         # Spike
         if tile == '^':
             trackers["spike_tracker"][y] += 1
-            reward -= 10
+            reward -= 1
             done = True
             return (state_action_pairs, reward, stars_collected, None, step)
 
