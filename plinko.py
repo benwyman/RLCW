@@ -11,15 +11,16 @@ trackers = initialize_trackers()
 q_table = defaultdict(dict)
 episode_rewards_history = []
 most_recent_rewards = deque(maxlen=100)
+most_recent_steps = deque(maxlen=100)
 total_stars_collected = 0
 
 # q-learning parameters
-learning_rate = 0.001
+learning_rate = 0.1
 discount_factor = 0.99
 exploration_rate = 1.0  # start fully exploratory
-exploration_decay = 0.99  # reduce randomness over time
+exploration_decay = 0.999  # reduce randomness over time
 min_exploration = 0.01  # smallest possible exploration rate
-episodes = 1000  # number of training episodes
+episodes = 2000  # number of training episodes
 initial_free_exploration = 0
 
 # train agent
@@ -65,7 +66,8 @@ for episode in range(episodes):
 
     episode_rewards_history.append(reward) # save the final reward
     most_recent_rewards.append(reward)
-    
+    most_recent_steps.append(steps_taken)
+
     # decay exploration rate
     if episode >= initial_free_exploration:
         exploration_rate = max(min_exploration, exploration_rate * exploration_decay)
@@ -77,7 +79,8 @@ for episode in range(episodes):
     if (episode + 1) % 100 == 0:
         avg_reward = sum(most_recent_rewards) / len(most_recent_rewards)
         avg_stars = total_stars_collected / (episode + 1)
-        print(f"Episode {episode + 1} | Avg Reward (Last 100): {avg_reward:.2f} | Avg Stars: {avg_stars:.2f} | Exploration Rate: {exploration_rate:.2f} | Q-States: {len(q_table)}")
+        avg_steps = sum(most_recent_steps) / len(most_recent_steps)
+        print(f"Episode {episode + 1} | Avg Reward (Last 100): {avg_reward:.2f} | Avg Stars: {avg_stars:.2f} | Avg Steps: {avg_steps:.2f} | Exploration Rate: {exploration_rate:.2f} | Q-States: {len(q_table)}")
 
 print_training_stats(
     trackers,

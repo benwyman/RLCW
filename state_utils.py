@@ -115,6 +115,7 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pr
             state_action_pairs.append((state, action))
 
         x = action
+        reward -= 0.005 # step penalty
         if (x, y) in tracker_dict["pipes"]:
             destination = tracker_dict["pipes"][(x, y)]
             tracker_dict["pipe_tracker"][(x, y)] += 1
@@ -159,8 +160,10 @@ def drop_ball(
     stars_collected = set()
 
     # Fake 10 stars if none exist on the board (e.g. default map)
+    """
     if all(grid.get(pos) != '☆' for pos in grid):
         stars_collected.update({("fake", i) for i in range(10)})
+    """
     state_action_pairs = []
 
     last_state, last_action = None, None
@@ -169,6 +172,8 @@ def drop_ball(
     step = 0
 
     while y > 0:
+        reward -= 0.005 # step penalty
+
         if visualize:
             visualize_grid(grid, width, height, ball_position=(x, y), buckets=buckets)
 
@@ -220,7 +225,7 @@ def drop_ball(
                 grid[(action, y)] = '_'  # convert to normal ledge
                 pressed_buttons.add((action, y))  # optional for state tracking
                 stars_collected.add((action, y))  # track that it was picked up
-                reward += 10
+                reward += 1
                 trackers["ledge_tracker"][state] -= 1
                 continue  # stay on same row
 
@@ -248,7 +253,7 @@ def drop_ball(
         # Spike
         if tile == '^':
             trackers["spike_tracker"][y] += 1
-            reward -= 1
+            reward -= 10
             done = True
             return (state_action_pairs, reward, stars_collected, None, step)
 
@@ -265,7 +270,7 @@ def drop_ball(
         reward += 0
         trackers["bucket_tracker"][bucket] += 1
         if bucket == target_bucket:
-           reward += 1
+           reward += 10
     return (state_action_pairs, reward, stars_collected, bucket, step)
 
 def initialize_trackers(include_q_table=False):

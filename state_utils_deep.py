@@ -108,7 +108,7 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_model, pr
 
         x = action
         log_transition(state, action, reward, state, extra)
-        maybe_learn(extra, q_model, width, grid)
+        reward -= 0.005 # step penalty
 
         if (x, y) in tracker_dict["pipes"]:
             destination = tracker_dict["pipes"][(x, y)]
@@ -152,8 +152,8 @@ def log_transition(prev_state, prev_action, reward, next_state, extra, done=Fals
     else:
         extra["replay_buffer"].add(exp)
 
-def maybe_learn(extra, q_model, width, grid):
-    if extra["should_learn"]() and len(extra["replay_buffer"]) >= extra["batch_size"]:
+def try_learn(extra, q_model, width, grid):
+    if len(extra["replay_buffer"]) >= extra["batch_size"]:
         extra["learn"](grid, width, extra["learning_rate"], extra["discount_factor"], extra["episode"])
         if extra["total_decision_steps"][0] % extra["target_update_frequency"] == 0:
             extra["update_target_network"](q_model, extra["target_net"], extra["soft_update_alpha"])
@@ -177,7 +177,6 @@ def drop_ball(
         trackers: dict with keys: blocks, pipes, ledge_tracker, pipe_tracker, button_tracker, spike_tracker, bucket_tracker
         extra: DQN-specific dict with keys (optional):
             - replay_buffer
-            - should_learn
             - learn
             - Experience
             - target_net
@@ -199,6 +198,7 @@ def drop_ball(
     reward = 0
 
     while y > 0:
+        reward -= 0.005 # step penalty
         if visualize:
             visualize_grid(grid, width, height, ball_position=(x, y), buckets=buckets)
 
@@ -224,7 +224,7 @@ def drop_ball(
             action = choose_action(state, q_model, exploration_rate, width, grid)
             if last_state is not None:
                 log_transition(last_state, last_action, reward, state, extra)
-                maybe_learn(extra, q_model, width, grid)
+                # try_learn(extra, q_model, width, grid)
             last_state = state
             last_action = action
             extra["total_decision_steps"][0] += 1
@@ -236,6 +236,8 @@ def drop_ball(
                     row_y = trackers.get("button_to_block_map", {}).get((action, y))
                     if row_y is not None:
                         unmark_block(grid, row_y, trackers["blocks"])
+                        reward += 1
+                        log_transition(last_state, last_action, reward, state, extra, boost=True)
                         # visualize_grid(grid, width, height, ball_position=(x, y), buckets=buckets)
                     trackers["button_tracker"][(action, y)] += 1
                     pressed_buttons.add((action, y))
@@ -252,8 +254,9 @@ def drop_ball(
                 # visualize_grid(grid, width, height, ball_position=(x, y), buckets=buckets)
 
                 # log star reward as its own transition
-                reward += 10
+                reward += 1
                 log_transition(last_state, last_action, reward, state, extra, boost=True)
+                try_learn(extra, q_model, width, grid)
 
                 # stay on same row
                 trackers["ledge_tracker"][state] -= 1
@@ -287,7 +290,7 @@ def drop_ball(
             done = True
             # print(f"Spike hit at ({x}, {y}) — applying penalty {reward}", flush=True)
             log_transition(last_state, last_action, reward, None, extra, done=True, boost=True)
-            maybe_learn(extra, q_model, width, grid)
+            try_learn(extra, q_model, width, grid)
             return (reward, -1, stars_collected)
 
         # Diagonal fall
@@ -303,11 +306,10 @@ def drop_ball(
         reward += 0
         trackers["bucket_tracker"][bucket] += 1
         if bucket == target_bucket:
-           reward += 1
+           reward += 10
 
     done = True
     log_transition(last_state, last_action, reward, None, extra, done=True)
-    maybe_learn(extra, q_model, width, grid)
 
     return (reward, bucket, stars_collected)
 
@@ -346,53 +348,68 @@ def initialize_trackers():
 
 # === Prioritized Experience Replay Buffer ===
 class PrioritizedReplayBuffer:
-    def __init__(self, capacity, alpha=0.8):
-        self.capacity = capacity                      # max number of experiences to store
-        self.buffer = []                              # list to store experiences
-        self.priorities = []                          # list of priorities (same order as buffer)
-        self.next_index = 0                           # circular index for overwriting old data
-        self.alpha = alpha                            # how much prioritization is used (0 = uniform, 1 = full prioritization)
+    def __init__(self, capacity, alpha=0.9, epsilon=1e-5, recency_bonus=0.01, min_priority=1e-2):
+        self.capacity = capacity
+        self.buffer = []
+        self.priorities = []
+        self.timestamps = []  # used to track recency
+        self.next_index = 0
+        self.alpha = alpha          # prioritization strength
+        self.epsilon = epsilon      # small constant to ensure non-zero probabilities
+        self.recency_bonus = recency_bonus  # added to favor newer entries
+        self.min_priority = min_priority    # minimum priority for key transitions
+        self.time = 0              # global time counter for freshness
 
     def __len__(self):
-        return len(self.buffer)                       # return current number of experiences
+        return len(self.buffer)
 
-    def add(self, experience, td_error=1.0):
-        # compute priority using TD error and alpha
-        priority = (abs(td_error) + 1e-5) ** self.alpha
+    def add(self, experience, td_error=1.0, force_priority=False):
+        # calculate base priority
+        base_priority = (abs(td_error) + self.epsilon) ** self.alpha
 
+        # apply freshness bonus
+        recency_weight = 1.0 + self.recency_bonus * self.time
+        priority = base_priority * recency_weight
+
+        # optionally force a minimum priority (e.g. for spike/star transitions)
+        if force_priority:
+            priority = max(priority, self.min_priority)
+
+        # insert experience and priority
         if len(self.buffer) < self.capacity:
-            # add new experience and its priority if buffer isn't full
             self.buffer.append(experience)
             self.priorities.append(priority)
+            self.timestamps.append(self.time)
         else:
-            # overwrite oldest experience and priority (circular buffer)
             self.buffer[self.next_index] = experience
             self.priorities[self.next_index] = priority
-            self.next_index = (self.next_index + 1) % self.capacity  # wrap around
+            self.timestamps[self.next_index] = self.time
+            self.next_index = (self.next_index + 1) % self.capacity
+
+        self.time += 1  # increment time counter for freshness
 
     def sample(self, batch_size, beta=0.4):
         if len(self.buffer) == 0:
-            return []
+            return [], [], []
 
         # convert priorities to probabilities
         priorities = torch.tensor(self.priorities, dtype=torch.float32)
         probs = priorities / priorities.sum()
 
-        # sample indices based on priority probabilities
+        # sample indices with replacement based on priority
         indices = torch.multinomial(probs, batch_size, replacement=True)
 
-        # compute importance-sampling weights to correct for non-uniform sampling
+        # compute importance sampling weights
         total = len(self.buffer)
-        weights = (total * probs[indices]).pow(-beta)  # beta controls bias correction
+        weights = (total * probs[indices]).pow(-beta)
         weights /= weights.max()  # normalize for stability
 
-        # gather samples from buffer using selected indices
         samples = [self.buffer[i] for i in indices]
-
         return samples, indices, weights
 
     def update_priorities(self, indices, td_errors):
-        # update priorities for sampled transitions using new TD errors
         for idx, td_error in zip(indices, td_errors):
-            self.priorities[idx] = abs(td_error.item()) ** self.alpha
-
+            base_priority = (abs(td_error.item()) + self.epsilon) ** self.alpha
+            recency_weight = 1.0 + self.recency_bonus * self.timestamps[idx]
+            new_priority = max(base_priority * recency_weight, self.min_priority)
+            self.priorities[idx] = new_priority

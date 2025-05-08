@@ -32,27 +32,27 @@ class QNetwork(nn.Module):
         return self.fc3(torch.relu(self.fc2(torch.relu(self.fc1(x)))))
 
 # === Training Hyperparameters ===
-learning_rate = 0.001               # optimizer learning rate
+learning_rate = 0.01               # optimizer learning rate
 discount_factor = 0.99              # gamma: importance of future rewards
 exploration_rate = 1.0              # epsilon: initial exploration probability
-exploration_decay = 0.99            # decay per episode
+exploration_decay = 0.999            # decay per episode
 min_exploration = 0.01              # lower bound for epsilon
-episodes = 1000                     # total training episodes
+episodes = 2000                     # total training episodes
 initial_free_exploration = 0        # episode cutoff for exploration decay
 
 # === DQN-specific Parameters ===
 update_frequency = 4                # learn every N decisions
-target_update_frequency = 100       # soft update every N decisions
+target_update_frequency = 50       # soft update every N decisions
 soft_update_alpha = 0.1             # tau: target network smoothing factor
 
 # === Prioritized Experience Replay Setup ===
 Experience = namedtuple("Experience", ["state", "action", "reward", "next_state", "done"])
-replay_buffer = PrioritizedReplayBuffer(capacity=10000)  # custom buffer with priorities
-batch_size = 32                    # number of experiences to sample
+replay_buffer = PrioritizedReplayBuffer(capacity=10000, min_priority=1.0)  # custom buffer with priorities
+batch_size = 16                    # number of experiences to sample
 
 # === Training Objectives ===
 target_bucket = 2                  # desired goal bucket
-map_name = "default"
+map_name = "hard"
 
 # === Initialize Stats and Environment ===
 trackers = initialize_trackers()   # global stat trackers for board elements
@@ -85,7 +85,9 @@ def learn(grid, width, learning_rate, discount_factor, episode):
         return
 
     # compute beta (importance sampling adjustment) for this episode
-    beta = min(1.0, (episode / episodes) ** 0.6)
+    beta_start = 0.4
+    beta_end = 1.0
+    beta = beta_start + (beta_end - beta_start) * (episode / episodes)
 
     # sample batch from buffer
     batch, indices, weights = replay_buffer.sample(batch_size, beta)
@@ -135,13 +137,10 @@ def update_target_network(online_model, target_model, alpha):
     for target_param, online_param in zip(target_model.parameters(), online_model.parameters()):
         target_param.data.copy_(alpha * online_param.data + (1 - alpha) * target_param.data)
 
-# === Learning Condition Function ===
-def should_learn():
-    return total_decision_steps[0] % update_frequency == 0
-
 grid, buckets, width, height = build_board(map_name, trackers)
 start_x = random.randint(0, width - 1)
 visualize_grid(grid, width, height, ball_position=(start_x, height - 1), buckets=buckets)
+most_recent_steps = deque(maxlen=100)
 
 # === Training Loop ===
 for episode in range(episodes):
@@ -165,7 +164,6 @@ for episode in range(episodes):
         trackers=trackers,
         extra={
             "replay_buffer": replay_buffer,
-            "should_learn": should_learn,
             "learn": learn,
             "Experience": Experience,
             "target_net": target_net,
@@ -183,6 +181,8 @@ for episode in range(episodes):
 
     # post-episode stats
     steps_taken = total_decision_steps[0] - steps_before
+    most_recent_steps = deque(maxlen=100) if episode == 0 else most_recent_steps
+    most_recent_steps.append(steps_taken)
     total_stars_collected += len(stars_collected)
     episode_rewards_history.append(episode_final_reward)
     most_recent_rewards.append(episode_final_reward)
@@ -190,7 +190,7 @@ for episode in range(episodes):
     # perform batch learning steps after episode
     losses = []
     if len(replay_buffer) > batch_size:
-        for _ in range(5):  # optional: increase for more updates
+        for _ in range(10):  # optional: increase for more updates
             loss = learn(grid, width, learning_rate, discount_factor, episode)
             if loss is not None:
                 losses.append(loss)
@@ -210,11 +210,9 @@ for episode in range(episodes):
     if (episode + 1) % 100 == 0:
         avg_reward = sum(most_recent_rewards) / len(most_recent_rewards)
         avg_stars = total_stars_collected / (episode + 1)
-        if losses:
-            avg_loss = sum(losses) / len(losses)
-            print(f"Ep {episode + 1} | Avg R (last 100): {avg_reward:.2f} | Stars: {avg_stars:.2f} | Loss: {avg_loss:.4f} | ε: {exploration_rate:.2f}", flush=True)
-        else:
-            print(f"Ep {episode + 1} | Avg R (last 100): {avg_reward:.2f} | Stars: {avg_stars:.2f} | ε: {exploration_rate:.2f}", flush=True)
+        avg_loss = sum(losses) / len(losses)
+        avg_steps = sum(most_recent_steps) / len(most_recent_steps)
+        print(f"Ep {episode + 1} | Avg R (last 100): {avg_reward:.2f} | Stars: {avg_stars:.2f} | Steps: {avg_steps:.2f} | Loss: {avg_loss:.4f} | ε: {exploration_rate:.2f}", flush=True)
 
 import csv
 
