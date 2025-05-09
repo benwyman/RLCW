@@ -8,8 +8,23 @@ from torch import nn
 
 # === Constants and Globals ===
 LEDGE_TILES = {'_', '⤓', '↥', '⬒', '☆'}
-VALID_MOVE_TILES = {'O', '_', '\\', '/', '⤓', '↥', '⬒', '█', '^', 'Φ'}
+VALID_MOVE_TILES = {'O', '_', '\\', '/', '⤓', '↥', '⬒', '█', '^', 'Φ', '☆'}
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# === Q-Network Definition ===
+class QNetwork(nn.Module):
+    def __init__(self, input_dim, output_dim):
+        super(QNetwork, self).__init__()
+        # input layer to hidden
+        self.fc1 = nn.Linear(input_dim, 1024)
+        # hidden to hidden
+        self.fc2 = nn.Linear(1024, 512)
+        # hidden to output (Q-value for each action)
+        self.fc3 = nn.Linear(512, output_dim)
+
+    def forward(self, x):
+        # pass through network with ReLU activations
+        return self.fc3(torch.relu(self.fc2(torch.relu(self.fc1(x)))))
 
 # === Action Selection ===
 def choose_action(state, model, epsilon, width, height, grid):
@@ -40,7 +55,6 @@ def choose_action(state, model, epsilon, width, height, grid):
             best_actions = [a]
         elif val == best_value:
             best_actions.append(a)
-
     return random.choice(best_actions)
 
 # === State Identification ===
@@ -149,6 +163,83 @@ def log_transition(prev_state, prev_action, reward, next_state, extra, done=Fals
     else:
         extra["replay_buffer"].add(exp)
 
+# === Learning Step Function ===
+def learn(
+    episode,
+    total_decision_steps,
+    replay_buffer,
+    batch_size,
+    online_net,
+    target_net,
+    optimizer,
+    discount_factor,
+    soft_update_alpha,
+    target_update_frequency,
+    width,
+    height,
+    episodes
+):    
+    # skip if not enough experiences yet
+    if len(replay_buffer) < batch_size:
+        return
+
+    # compute beta (importance sampling adjustment) for this episode
+    beta_start = 0.4
+    beta_end = 1.0
+    beta = beta_start + (beta_end - beta_start) * (episode / episodes)
+
+    # sample batch from buffer
+    batch, indices, weights = replay_buffer.sample(batch_size, beta)
+    weights = weights.unsqueeze(1).to(device)
+
+    # separate experience components
+    state_batch = torch.cat([preprocess_state(s, width, height) for s, _, _, _, _ in batch]).to(device)
+    action_batch = torch.tensor([a for _, a, _, _, _ in batch], dtype=torch.int64).unsqueeze(1).to(device)
+    reward_batch = torch.tensor([r for _, _, r, _, _ in batch], dtype=torch.float32).unsqueeze(1).to(device)
+    done_batch = torch.tensor([d for _, _, _, _, d in batch], dtype=torch.float32).unsqueeze(1).to(device)
+
+    # preprocess next states and mask out terminal transitions
+    next_states = [s for _, _, _, s, _ in batch]
+    non_final_mask = torch.tensor([s is not None for s in next_states], dtype=torch.bool)
+    non_final_next_states = torch.cat([preprocess_state(s, width, height) for s in next_states if s is not None]).to(device)
+
+    # compute current Q-values
+    q_values = online_net(state_batch).gather(1, action_batch)
+
+    # compute target Q-values
+    target_q_values = torch.zeros(batch_size, 1, device=device)
+    if non_final_next_states.size(0) > 0:
+        next_actions = online_net(non_final_next_states).argmax(dim=1).unsqueeze(1)
+        target_q = target_net(non_final_next_states).gather(1, next_actions)
+        target_q_values[non_final_mask] = target_q.detach()
+
+    # Bellman target
+    expected_q = reward_batch + discount_factor * target_q_values * (1 - done_batch)
+
+    # TD error and loss
+    td_errors = q_values - expected_q
+    loss = (td_errors.pow(2) * weights).mean()
+
+    # optimize
+    optimizer.zero_grad()
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(online_net.parameters(), max_norm=5.0)
+    optimizer.step()
+
+    # === Soft Target Network Update ===
+    if total_decision_steps[0] % target_update_frequency == 0:
+        update_target_network(online_net, target_net, soft_update_alpha)
+
+    # update priorities
+    replay_buffer.update_priorities(indices, td_errors.squeeze().detach())
+
+    return loss.item()
+
+# === Soft Target Network Update ===
+def update_target_network(online_model, target_model, alpha):
+    for target_param, online_param in zip(target_model.parameters(), online_model.parameters()):
+        target_param.data.copy_(alpha * online_param.data + (1 - alpha) * target_param.data)
+
 # === Experience and Learning Helpers ===
 
 def drop_ball(
@@ -179,14 +270,12 @@ def drop_ball(
     x, y = start_x, height - 1
     pressed_buttons = set()
     stars_collected = set()
-    episode_transitions = []
 
     # Fake 10 stars if none exist on the board (e.g. default map)
     if all(grid.get(pos) != '☆' for pos in grid):
         stars_collected.update({("fake", i) for i in range(10)})
 
     last_state, last_action = None, None
-    done = False
     reward = 0
     
     step_counter = [0]  # wrapped in list so it's mutable
@@ -245,6 +334,7 @@ def drop_ball(
                 grid[(action, y)] = '_'
                 pressed_buttons.add((action, y))
                 stars_collected.add((action, y))
+                #print(f"[Step {step_counter[0]}] Collected star at ({action}, {y})")
                 # visualize_grid(grid, width, height, ball_position=(x, y), buckets=buckets)
 
                 # log star reward as its own transition
@@ -280,7 +370,6 @@ def drop_ball(
         if tile == '^':
             trackers["spike_tracker"][y] += 1
             reward -= 1
-            done = True
             # print(f"Spike hit at ({x}, {y}) — applying penalty {reward}", flush=True)
             log_transition(last_state, last_action, reward, None, extra, done=True, boost=True)
             return (reward, -1, stars_collected)
@@ -340,7 +429,7 @@ def initialize_trackers():
 
 # === Prioritized Experience Replay Buffer ===
 class PrioritizedReplayBuffer:
-    def __init__(self, capacity, alpha=0.9, epsilon=1e-5, recency_bonus=0.01, min_priority=1e-2):
+    def __init__(self, capacity, alpha=0.9, epsilon=1e-5, recency_bonus=0.01):
         self.capacity = capacity
         self.buffer = []
         self.priorities = []
@@ -349,23 +438,18 @@ class PrioritizedReplayBuffer:
         self.alpha = alpha          # prioritization strength
         self.epsilon = epsilon      # small constant to ensure non-zero probabilities
         self.recency_bonus = recency_bonus  # added to favor newer entries
-        self.min_priority = min_priority    # minimum priority for key transitions
         self.time = 0              # global time counter for freshness
 
     def __len__(self):
         return len(self.buffer)
 
-    def add(self, experience, td_error=1.0, force_priority=False):
+    def add(self, experience, td_error=1.0):
         # calculate base priority
         base_priority = (abs(td_error) + self.epsilon) ** self.alpha
 
         # apply freshness bonus
         recency_weight = 1.0 + self.recency_bonus * self.time
         priority = base_priority * recency_weight
-
-        # optionally force a minimum priority (e.g. for spike/star transitions)
-        if force_priority:
-            priority = max(priority, self.min_priority)
 
         # insert experience and priority
         if len(self.buffer) < self.capacity:
@@ -403,5 +487,5 @@ class PrioritizedReplayBuffer:
         for idx, td_error in zip(indices, td_errors):
             base_priority = (abs(td_error.item()) + self.epsilon) ** self.alpha
             recency_weight = 1.0 + self.recency_bonus * self.timestamps[idx]
-            new_priority = max(base_priority * recency_weight, self.min_priority)
+            new_priority = base_priority * recency_weight
             self.priorities[idx] = new_priority

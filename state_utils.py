@@ -4,7 +4,7 @@ from visualization import visualize_grid
 import random
 
 LEDGE_TILES = {'_', '⤓', '↥', '⬒', '☆'}
-VALID_MOVE_TILES = {'O', '_', '\\', '/', '⤓', '↥', '⬒', '█', '^', 'Φ'}
+VALID_MOVE_TILES = {'O', '_', '\\', '/', '⤓', '↥', '⬒', '█', '^', 'Φ', '☆'}
 
 def choose_action(state, q_table, epsilon, width, grid):
     # available actions based on the state type

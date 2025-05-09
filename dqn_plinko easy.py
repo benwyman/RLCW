@@ -21,7 +21,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 learning_rate = 1e-5               # optimizer learning rate
 discount_factor = 0.99              # gamma: importance of future rewards
 exploration_rate = 1.0              # epsilon: initial exploration probability
-exploration_decay = 0.999            # decay per episode
+exploration_decay = 0.997            # decay per episode
 min_exploration = 0.01              # lower bound for epsilon
 episodes = 1000                     # total training episodes
 initial_free_exploration = 0        # episode cutoff for exploration decay
@@ -38,7 +38,7 @@ batch_size = 32                    # number of experiences to sample
 
 # === Training Objectives ===
 target_bucket = 2                  # desired goal bucket
-map_name = "hard"
+map_name = "easy"
 
 # === Initialize Stats and Environment ===
 trackers = initialize_trackers()   # global stat trackers for board elements

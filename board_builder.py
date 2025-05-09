@@ -65,8 +65,8 @@ def build_board(name, trackers):
         mark_slide(grid, 14, 16, 4, "backward")
         mark_slide(grid, 0, 12, 2, "forward")
 
-        mark_spike(grid, 6, 1, 18, spike_tracker)
-        mark_spike(grid, 8, 1, 6, spike_tracker)
+        # mark_spike(grid, 6, 1, 18, spike_tracker)
+        # mark_spike(grid, 8, 1, 6, spike_tracker)
 
         mark_pipe(grid, 6, 27, 24, pipes, pipe_tracker)
         mark_pipe(grid, 9, 24, 19, pipes, pipe_tracker)
@@ -181,7 +181,7 @@ def build_board(name, trackers):
         mark_block(grid, width, 1, blocks)
 
         # Bonus Stars (optional rewards)
-        bonus_positions = [(24, 98), (0, 74), (0, 63), (24, 59), (19, 44), (0, 18)]
+        bonus_positions = [(24, 98), (0, 74), (0, 63), (23, 59), (19, 44), (0, 18)]
 
         for x, y in bonus_positions:
             grid[(x, y)] = '☆'
