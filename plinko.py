@@ -56,6 +56,14 @@ for episode in range(episodes):
         visualize=False,
     )
 
+    # Save for inspection if it's a short trajectory
+    if steps_taken <= 10:  # change the threshold if needed
+        print(f"\n=== Episode {episode+1} Trajectory (Steps: {steps_taken}) ===")
+        for idx, (state, action) in enumerate(state_action_pairs):
+            print(f"Step {idx+1}: State = {state}, Action = {action}")
+
+
+
     total_stars_collected += len(stars_collected)
 
     # update Q-table using recorded decisions

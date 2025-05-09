@@ -32,7 +32,7 @@ class QNetwork(nn.Module):
         return self.fc3(torch.relu(self.fc2(torch.relu(self.fc1(x)))))
 
 # === Training Hyperparameters ===
-learning_rate = 0.01               # optimizer learning rate
+learning_rate = 1e-5               # optimizer learning rate
 discount_factor = 0.99              # gamma: importance of future rewards
 exploration_rate = 1.0              # epsilon: initial exploration probability
 exploration_decay = 0.999            # decay per episode
@@ -204,7 +204,7 @@ for episode in range(episodes):
         exploration_rate = max(min_exploration, exploration_rate * exploration_decay)
 
     # episode summary
-    print(f"[Episode {episode+1}] Reward: {episode_final_reward} | Bucket: {final_bucket} | Stars: {len(stars_collected)} | Steps: {steps_taken} | ε: {exploration_rate:.2f}", flush=True)
+    # print(f"[Episode {episode+1}] Reward: {episode_final_reward} | Bucket: {final_bucket} | Stars: {len(stars_collected)} | Steps: {steps_taken} | ε: {exploration_rate:.2f}", flush=True)
 
     # periodic performance print
     if (episode + 1) % 100 == 0:

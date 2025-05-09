@@ -91,11 +91,11 @@ def identify_decision_state(x, y, grid, pressed_buttons):
     tile = grid.get((x, y), '')
     if tile in LEDGE_TILES:
         return find_ledge_state_key(x, y, grid, frozenset(pressed_buttons))
-    if tile == '█' or (tile in {'⤓', '↥'} and (grid.get((x - 1, y)) == '█' or grid.get((x + 1, y)) == '█')):
+    if is_block_row(grid, x, y):
         return (('block', y), frozenset(pressed_buttons))
     return None
 
-def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pressed_buttons, episode, reward, state_action_pairs=None):
+def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pressed_buttons, episode, reward, state_action_pairs=None, step_counter=None):
     """
     Handles movement and decision logic when the agent is on a block row.
 
@@ -113,6 +113,9 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pr
 
         if state_action_pairs is not None:
             state_action_pairs.append((state, action))
+
+        if step_counter is not None:
+            step_counter[0] += 1  # increment shared step count
 
         x = action
         reward -= 0.005 # step penalty
@@ -166,10 +169,9 @@ def drop_ball(
     """
     state_action_pairs = []
 
-    last_state, last_action = None, None
     done = False
     reward = 0
-    step = 0
+    step_counter = [0]
 
     while y > 0:
         reward -= 0.005 # step penalty
@@ -179,7 +181,7 @@ def drop_ball(
 
         tile = grid.get((x, y), ' ')
         is_ledge = tile in LEDGE_TILES
-        is_block = tile == '█' or (tile in {'⤓', '↥'} and (grid.get((x - 1, y)) == '█' or grid.get((x + 1, y)) == '█'))
+        is_block = is_block_row(grid, x, y)
 
         if is_ledge or is_block:
             state = identify_decision_state(x, y, grid, pressed_buttons)
@@ -192,9 +194,10 @@ def drop_ball(
                         "pipe_tracker": trackers["pipe_tracker"],
                         "pipes": trackers["pipes"]
                     },
-                    q_table, pressed_buttons, episode, reward, state_action_pairs
+                    q_table, pressed_buttons, episode, reward,
+                    state_action_pairs,
+                    step_counter=step_counter  # <-- pass a list containing step
                 )
-                step += 1
                 continue
 
 
@@ -204,6 +207,7 @@ def drop_ball(
             # Q-learning: record state
             action = choose_action(state, q_table, exploration_rate, width, grid)
             state_action_pairs.append((state, action))
+            step_counter[0] += 1  # increment shared step count
 
             # if the agent lands on a button tile
             if grid.get((action, y)) == '⬒':
@@ -271,7 +275,7 @@ def drop_ball(
         trackers["bucket_tracker"][bucket] += 1
         if bucket == target_bucket:
            reward += 10
-    return (state_action_pairs, reward, stars_collected, bucket, step)
+    return (state_action_pairs, reward, stars_collected, bucket, step_counter[0])
 
 def initialize_trackers(include_q_table=False):
     # special maps

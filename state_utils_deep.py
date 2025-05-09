@@ -188,6 +188,7 @@ def drop_ball(
     x, y = start_x, height - 1
     pressed_buttons = set()
     stars_collected = set()
+    episode_transitions = []
 
     # Fake 10 stars if none exist on the board (e.g. default map)
     if all(grid.get(pos) != '☆' for pos in grid):
