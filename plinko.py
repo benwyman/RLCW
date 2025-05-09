@@ -47,7 +47,6 @@ for episode in range(episodes):
         start_x=start_x,
         buckets=buckets,
         target_bucket=target_bucket,
-        mode="q",
         exploration_rate=exploration_rate,
         q_table=q_table,
         trackers=trackers,

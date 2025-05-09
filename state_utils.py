@@ -128,7 +128,6 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pr
 
 def drop_ball(
     grid, width, height, start_x, buckets, target_bucket,
-    mode,  # "q" or "dqn"
     exploration_rate,
     q_table,
     trackers,
@@ -140,7 +139,6 @@ def drop_ball(
 
     Args:
         grid, width, height, start_x, buckets, target_bucket: shared environment info
-        mode: "q" or "dqn"
         exploration_rate: epsilon-greedy parameter
         q_table: Q-table (dict for Q, neural net or dict for DQN)
         trackers: dict with keys: blocks, pipes, ledge_tracker, pipe_tracker, button_tracker, spike_tracker, bucket_tracker
