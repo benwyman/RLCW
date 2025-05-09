@@ -66,7 +66,7 @@ episode_losses = []                # average loss per episode (for plotting)
 grid, buckets, width, height = build_board(map_name, trackers)
 
 # === Define Neural Network Dimensions ===
-input_dim = 3 + (width * 5)         # [type, x, y] + flattened button vector
+input_dim = 3 + (width * height)         # [type, x, y] + flattened button vector
 output_dim = width                  # one Q-value per column action
 
 # === Instantiate Online and Target Networks ===
@@ -94,7 +94,7 @@ def learn(grid, width, learning_rate, discount_factor, episode):
     weights = weights.unsqueeze(1).to(device)
 
     # separate experience components
-    state_batch = torch.cat([preprocess_state(s, width) for s, _, _, _, _ in batch]).to(device)
+    state_batch = torch.cat([preprocess_state(s, width, height) for s, _, _, _, _ in batch]).to(device)
     action_batch = torch.tensor([a for _, a, _, _, _ in batch], dtype=torch.int64).unsqueeze(1).to(device)
     reward_batch = torch.tensor([r for _, _, r, _, _ in batch], dtype=torch.float32).unsqueeze(1).to(device)
     done_batch = torch.tensor([d for _, _, _, _, d in batch], dtype=torch.float32).unsqueeze(1).to(device)
@@ -102,7 +102,7 @@ def learn(grid, width, learning_rate, discount_factor, episode):
     # preprocess next states and mask out terminal transitions
     next_states = [s for _, _, _, s, _ in batch]
     non_final_mask = torch.tensor([s is not None for s in next_states], dtype=torch.bool)
-    non_final_next_states = torch.cat([preprocess_state(s, width) for s in next_states if s is not None]).to(device)
+    non_final_next_states = torch.cat([preprocess_state(s, width, height) for s in next_states if s is not None]).to(device)
 
     # compute current Q-values
     q_values = online_net(state_batch).gather(1, action_batch)
@@ -152,7 +152,7 @@ for episode in range(episodes):
     steps_before = total_decision_steps[0]
 
     # drop the ball and get result of episode
-    episode_final_reward, final_bucket, stars_collected = drop_ball(
+    episode_final_reward, final_bucket, stars_collected, steps_taken = drop_ball(
         grid=grid,
         width=width,
         height=height,
@@ -207,7 +207,7 @@ for episode in range(episodes):
     # print(f"[Episode {episode+1}] Reward: {episode_final_reward} | Bucket: {final_bucket} | Stars: {len(stars_collected)} | Steps: {steps_taken} | ε: {exploration_rate:.2f}", flush=True)
 
     # periodic performance print
-    if (episode + 1) % 100 == 0:
+    if (episode + 1) % 50 == 0:
         avg_reward = sum(most_recent_rewards) / len(most_recent_rewards)
         avg_stars = total_stars_collected / (episode + 1)
         avg_loss = sum(losses) / len(losses)

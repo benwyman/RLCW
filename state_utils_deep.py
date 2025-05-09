@@ -12,7 +12,7 @@ VALID_MOVE_TILES = {'O', '_', '\\', '/', '⤓', '↥', '⬒', '█', '^', 'Φ'}
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # === Action Selection ===
-def choose_action(state, model, epsilon, width, grid):
+def choose_action(state, model, epsilon, width, height, grid):
     # determine available actions
     if isinstance(state[0], str) and state[0] == 'block':
         available_actions = list(range(width))
@@ -27,7 +27,7 @@ def choose_action(state, model, epsilon, width, grid):
         return random.choice(available_actions)
 
     with torch.no_grad():
-        state_tensor = preprocess_state(state, width)
+        state_tensor = preprocess_state(state, width, height)
         q_values = model(state_tensor.to(device)).squeeze(0)
 
     # select among available actions
@@ -91,7 +91,7 @@ def identify_decision_state(x, y, grid, pressed_buttons):
 
 # === Block Row Logic ===
 
-def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_model, pressed_buttons, extra, reward):
+def handle_blocks(grid, x, y, width, height, exploration_rate, tracker_dict, q_model, pressed_buttons, extra, reward, step_counter=None):
     """
     Handles movement and decision logic when the agent is on a block row.
 
@@ -104,7 +104,8 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_model, pr
     tracker_dict['block_row_tracker'][state] += 1
 
     while True:
-        action = choose_action(state, q_model, exploration_rate, width, grid)
+        action = choose_action(state, q_model, exploration_rate, width, height, grid)
+        step_counter[0] += 1
 
         x = action
         log_transition(state, action, reward, state, extra)
@@ -118,28 +119,24 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_model, pr
         return x, y, reward
 
 # === State Encoding for Neural Network ===
-def encode_state(state, width):
-    button_vector = torch.zeros(width * 5)
+def preprocess_state(state, width, height):
+    button_vector = torch.zeros(width * height)
     for bx, by in state[1]:
-        index = (by * width + bx) % (width * 5)
+        index = by * width + bx
         button_vector[index] = 1
 
     key = state[0]
 
     if isinstance(key, tuple) and isinstance(key[0], int):
         x, y = key
-        return torch.tensor([0, x, y], dtype=torch.float32).unsqueeze(0), button_vector.unsqueeze(0)
-
+        base = torch.tensor([0, x, y], dtype=torch.float32).unsqueeze(0)
     elif isinstance(key, tuple) and key[0] == 'block':
         y = key[1]
-        return torch.tensor([1, 0, y], dtype=torch.float32).unsqueeze(0), button_vector.unsqueeze(0)
-
+        base = torch.tensor([1, 0, y], dtype=torch.float32).unsqueeze(0)
     else:
         raise ValueError("Unrecognized state format.")
 
-def preprocess_state(state, width):
-    base, buttons = encode_state(state, width)
-    return torch.cat([base, buttons], dim=1)
+    return torch.cat([base, button_vector.unsqueeze(0)], dim=1)
 
 # === Experience and Learning Helpers ===
 
@@ -151,12 +148,6 @@ def log_transition(prev_state, prev_action, reward, next_state, extra, done=Fals
         extra["replay_buffer"].add(exp, td_error=20.0)  # star/spike reward
     else:
         extra["replay_buffer"].add(exp)
-
-def try_learn(extra, q_model, width, grid):
-    if len(extra["replay_buffer"]) >= extra["batch_size"]:
-        extra["learn"](grid, width, extra["learning_rate"], extra["discount_factor"], extra["episode"])
-        if extra["total_decision_steps"][0] % extra["target_update_frequency"] == 0:
-            extra["update_target_network"](q_model, extra["target_net"], extra["soft_update_alpha"])
 
 # === Experience and Learning Helpers ===
 
@@ -197,6 +188,8 @@ def drop_ball(
     last_state, last_action = None, None
     done = False
     reward = 0
+    
+    step_counter = [0]  # wrapped in list so it's mutable
 
     while y > 0:
         reward -= 0.005 # step penalty
@@ -211,21 +204,21 @@ def drop_ball(
             state = identify_decision_state(x, y, grid, pressed_buttons)
 
             if isinstance(state[0], tuple) and state[0][0] == "block":
-                x, y = handle_blocks(grid, x, y, width, exploration_rate, {
+                x, y = handle_blocks(grid, x, y, width, height, exploration_rate, {
                     "block_row_tracker": trackers["block_row_tracker"],
                     "pipe_tracker": trackers["pipe_tracker"],
                     "pipes": trackers["pipes"]
-                }, q_model, pressed_buttons, extra, reward)
+                }, q_model, pressed_buttons, extra, reward, step_counter=step_counter)
                 continue
 
             # log visit
             trackers["ledge_tracker"][state] += 1
 
             # DQN logic
-            action = choose_action(state, q_model, exploration_rate, width, grid)
+            action = choose_action(state, q_model, exploration_rate, width, height, grid)
             if last_state is not None:
                 log_transition(last_state, last_action, reward, state, extra)
-                # try_learn(extra, q_model, width, grid)
+                step_counter[0] += 1
             last_state = state
             last_action = action
             extra["total_decision_steps"][0] += 1
@@ -257,7 +250,6 @@ def drop_ball(
                 # log star reward as its own transition
                 reward += 1
                 log_transition(last_state, last_action, reward, state, extra, boost=True)
-                try_learn(extra, q_model, width, grid)
 
                 # stay on same row
                 trackers["ledge_tracker"][state] -= 1
@@ -291,7 +283,6 @@ def drop_ball(
             done = True
             # print(f"Spike hit at ({x}, {y}) — applying penalty {reward}", flush=True)
             log_transition(last_state, last_action, reward, None, extra, done=True, boost=True)
-            try_learn(extra, q_model, width, grid)
             return (reward, -1, stars_collected)
 
         # Diagonal fall
@@ -307,12 +298,12 @@ def drop_ball(
         reward += 0
         trackers["bucket_tracker"][bucket] += 1
         if bucket == target_bucket:
-           reward += 10
+           reward += 100
 
     done = True
     log_transition(last_state, last_action, reward, None, extra, done=True)
 
-    return (reward, bucket, stars_collected)
+    return (reward, bucket, stars_collected, step_counter[0])
 
 # === Tracker Initialization ===
 

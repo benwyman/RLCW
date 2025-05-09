@@ -34,7 +34,7 @@ def build_board(name, trackers):
     blocks.clear()
     pipes.clear()
 
-    if name == "default":
+    if name == "easy":
         width, height = 15, 30
         grid = generate_grid(width, height)
         mark_ledge(grid, 2, 5, 27, button_tracker, ledge_tracker)
