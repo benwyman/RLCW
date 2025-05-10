@@ -27,7 +27,6 @@ episodes = 1000                     # total training episodes
 initial_free_exploration = 0        # episode cutoff for exploration decay
 
 # === DQN-specific Parameters ===
-update_frequency = 4                # learn every N decisions
 target_update_frequency = 50       # soft update every N decisions
 soft_update_alpha = 0.1             # tau: target network smoothing factor
 

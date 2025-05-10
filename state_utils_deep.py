@@ -226,11 +226,7 @@ def learn(
     torch.nn.utils.clip_grad_norm_(online_net.parameters(), max_norm=5.0)  # prevent exploding gradients
     optimizer.step()            # apply gradients to update network weights
 
-    # === 11. Periodically soft update target network ===
-    if total_decision_steps[0] % target_update_frequency == 0:  # every N steps...
-        update_target_network(online_net, target_net, soft_update_alpha)  # slowly blend weights into target net
-
-    # === 12. Update priorities in replay buffer ===
+    # === 11. Update priorities in replay buffer ===
     replay_buffer.update_priorities(indices, td_errors.squeeze().detach())  # adjust sample priorities using TD error
 
     return loss.item()  # return scalar loss value for logging
@@ -375,7 +371,7 @@ def drop_ball(
             reward -= 1
             # print(f"Spike hit at ({x}, {y}) — applying penalty {reward}", flush=True)
             log_transition(last_state, last_action, reward, None, extra, done=True, boost=True)
-            return (reward, -1, stars_collected)
+            return (reward, -1, stars_collected, step_counter[0])
 
         # Diagonal fall
         moves = get_valid_diagonal_moves(grid, x, y, width, height)
