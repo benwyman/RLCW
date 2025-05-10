@@ -22,10 +22,12 @@ exploration_decay = 0.999  # reduce randomness over time
 min_exploration = 0.01  # smallest possible exploration rate
 episodes = 2000  # number of training episodes
 initial_free_exploration = 0
+policy_type = "epsilon"     # options: "epsilon" or "softmax"
+softmax_temp = 5.0          # only used for softmax policy
 
 # train agent
 target_bucket = 2  # the bucket the agent should aim for
-map_name = "hard"
+map_name = "easy"
 
 grid, buckets, width, height = build_board(map_name, trackers)
 
@@ -33,12 +35,18 @@ start_x = random.randint(0, width - 1)
 
 visualize_grid(grid, width, height, ball_position=(start_x, height - 1), buckets=buckets)
 
+
 for episode in range(episodes):
     grid, buckets, width, height = build_board(map_name, trackers)
 
     start_x = random.randint(0, width - 1)
     
     # visualize_grid(grid, width, height, ball_position=(start_x, height - 1), buckets=buckets)
+    # Adjust temperature dynamically for softmax exploration
+    if policy_type == "softmax":
+        temperature = float('inf') if episode < 200 else softmax_temp
+    else:
+        temperature = softmax_temp  # fallback for epsilon policy
 
     state_action_pairs, reward, stars_collected, final_bucket, steps_taken = drop_ball(
         grid=grid,
@@ -51,17 +59,11 @@ for episode in range(episodes):
         q_table=q_table,
         trackers=trackers,
         episode=episode,
+        policy=policy_type,
+        temperature=softmax_temp,
         # visualize=(episode == episodes - 1)
         visualize=False,
     )
-
-    # Save for inspection if it's a short trajectory
-    if steps_taken <= 10:  # change the threshold if needed
-        print(f"\n=== Episode {episode+1} Trajectory (Steps: {steps_taken}) ===")
-        for idx, (state, action) in enumerate(state_action_pairs):
-            print(f"Step {idx+1}: State = {state}, Action = {action}")
-
-
 
     total_stars_collected += len(stars_collected)
 

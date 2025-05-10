@@ -2,54 +2,52 @@ from collections import defaultdict
 from grid_utils import unmark_block
 from visualization import visualize_grid
 import random
+import math
 
 LEDGE_TILES = {'_', '⤓', '↥', '⬒', '☆'}
 VALID_MOVE_TILES = {'O', '_', '\\', '/', '⤓', '↥', '⬒', '█', '^', 'Φ', '☆'}
+STEP_PENALTY = 0.00
+MAX_STEPS = 10000
 
-def choose_action(state, q_table, epsilon, width, grid):
+def choose_action(state, q_table, epsilon, width, grid, policy="epsilon", temperature=1.0):
     # available actions based on the state type
     if isinstance(state[0], str) and state[0] == 'block':
         available_actions = list(range(width))
-    elif isinstance(state[0], tuple): # ledge state
+    elif isinstance(state[0], tuple):  # ledge state
         ledge_start_x, ledge_y = state[0]
-        # check if ledge_y is valid before accessing grid
-        available_actions = [col for col in range(width) if grid.get((col, ledge_y)) in LEDGE_TILES]
+        available_actions = [col for col in range(width) if grid.get((col, ledge_y)) in {'_', '⬒', '☆', '↥', '⤓'}]
     else:
         print(f"Warning: Unrecognized state format for action selection: {state}")
         available_actions = list(range(width))
         
-    # check state exists in the q_table (initialize if not)
+    # initialize Q-values if not present
     if state not in q_table:
         q_table[state] = defaultdict(float)
-        for act in available_actions:
-             q_table[state][act] = 0.0 
-
     current_q_actions = q_table[state]
-
     for act in available_actions:
         if act not in current_q_actions:
-             current_q_actions[act] = 0.0
+            current_q_actions[act] = 0.0
 
-    if random.random() < epsilon:
-        return random.choice(available_actions)  # explore
+    # === ε-GREEDY POLICY ===
+    if policy == "epsilon":
+        if random.random() < epsilon:
+            return random.choice(available_actions)
+        else:
+            max_q = max(current_q_actions[a] for a in available_actions)
+            best_actions = [a for a in available_actions if current_q_actions[a] == max_q]
+            return random.choice(best_actions)
+
+    # === SOFTMAX POLICY ===
+    elif policy == "softmax":
+        logits = [current_q_actions[a] / temperature for a in available_actions]
+        max_logit = max(logits)
+        exps = [math.exp(l - max_logit) for l in logits]  # numerically stable softmax
+        total = sum(exps)
+        probs = [e / total for e in exps]
+        return random.choices(available_actions, weights=probs, k=1)[0]
+
     else:
-        # choose the action with the highest Q-value from available actions
-        q_values = q_table[state]
-        max_q = -float('inf')
-        best_actions = []
-        
-        for act in available_actions: 
-            q_val = q_values.get(act, 0.0) # set to 0 if action not seen before in this state
-            if q_val > max_q:
-                max_q = q_val
-                best_actions = [act]
-            elif q_val == max_q:
-                best_actions.append(act)
-        
-        if not best_actions: # if all available actions have Q=-inf
-             return random.choice(available_actions) # select random available action
-             
-        return random.choice(best_actions) # choose randomly among best actions
+        raise ValueError(f"Unknown policy type: {policy}")
 
 # find the state key ((start_x, y), frozenset(buttons)) for the ledge the ball is currently on
 def find_ledge_state_key(x, y, grid, pressed_buttons):
@@ -95,7 +93,7 @@ def identify_decision_state(x, y, grid, pressed_buttons):
         return (('block', y), frozenset(pressed_buttons))
     return None
 
-def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pressed_buttons, episode, reward, state_action_pairs=None, step_counter=None):
+def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pressed_buttons, episode, reward, state_action_pairs=None, step_counter=None, policy="epsilon", temperature=1.0):
     """
     Handles movement and decision logic when the agent is on a block row.
 
@@ -109,7 +107,8 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pr
     tracker_dict['block_row_tracker'][state] += 1
 
     while True:
-        action = choose_action(state, q_table, exploration_rate, width, grid)
+        action = choose_action(state, q_table, exploration_rate, width, grid, policy=policy, temperature=temperature)
+        
 
         if state_action_pairs is not None:
             state_action_pairs.append((state, action))
@@ -118,7 +117,7 @@ def handle_blocks(grid, x, y, width, exploration_rate, tracker_dict, q_table, pr
             step_counter[0] += 1  # increment shared step count
 
         x = action
-        reward -= 0.005 # step penalty
+        reward -= STEP_PENALTY # step penalty
         if (x, y) in tracker_dict["pipes"]:
             destination = tracker_dict["pipes"][(x, y)]
             tracker_dict["pipe_tracker"][(x, y)] += 1
@@ -133,6 +132,8 @@ def drop_ball(
     trackers,
     episode,
     visualize=False,
+    policy="epsilon",
+    temperature=1.0,
 ):
     """
     Unified drop function for both Q-learning and DQN.
@@ -161,10 +162,8 @@ def drop_ball(
     stars_collected = set()
 
     # Fake 10 stars if none exist on the board (e.g. default map)
-    """
     if all(grid.get(pos) != '☆' for pos in grid):
         stars_collected.update({("fake", i) for i in range(10)})
-    """
     state_action_pairs = []
 
     done = False
@@ -172,7 +171,7 @@ def drop_ball(
     step_counter = [0]
 
     while y > 0:
-        reward -= 0.005 # step penalty
+        reward -= STEP_PENALTY # step penalty
 
         if visualize:
             visualize_grid(grid, width, height, ball_position=(x, y), buckets=buckets)
@@ -194,18 +193,21 @@ def drop_ball(
                     },
                     q_table, pressed_buttons, episode, reward,
                     state_action_pairs,
-                    step_counter=step_counter  # <-- pass a list containing step
+                    step_counter=step_counter,
+                    policy=policy,
+                    temperature=temperature
                 )
                 continue
-
 
             # log visit
             trackers["ledge_tracker"][state] += 1
 
             # Q-learning: record state
-            action = choose_action(state, q_table, exploration_rate, width, grid)
+            action = choose_action(state, q_table, exploration_rate, width, grid, policy=policy, temperature=temperature)
             state_action_pairs.append((state, action))
             step_counter[0] += 1  # increment shared step count
+            if step_counter[0] >= MAX_STEPS:
+                return (state_action_pairs, reward, stars_collected, None, step_counter[0])
 
             # if the agent lands on a button tile
             if grid.get((action, y)) == '⬒':
@@ -214,6 +216,7 @@ def drop_ball(
                     grid[(action, y)] = '_'
                     row_y = trackers.get("button_to_block_map", {}).get((action, y))
                     if row_y is not None:
+                        reward += 0
                         unmark_block(grid, row_y, trackers["blocks"])
                     trackers["button_tracker"][(action, y)] += 1
                     pressed_buttons.add((action, y))
@@ -227,7 +230,7 @@ def drop_ball(
                 grid[(action, y)] = '_'  # convert to normal ledge
                 pressed_buttons.add((action, y))  # optional for state tracking
                 stars_collected.add((action, y))  # track that it was picked up
-                reward += 1
+                reward += 0
                 trackers["ledge_tracker"][state] -= 1
                 continue  # stay on same row
 
@@ -255,9 +258,9 @@ def drop_ball(
         # Spike
         if tile == '^':
             trackers["spike_tracker"][y] += 1
-            reward -= 10
+            reward -= 0
             done = True
-            return (state_action_pairs, reward, stars_collected, None, step)
+            return (state_action_pairs, reward, stars_collected, None, step_counter[0])
 
         # Diagonal fall
         moves = get_valid_diagonal_moves(grid, x, y, width, height)
@@ -269,10 +272,12 @@ def drop_ball(
     # Episode end
     bucket = buckets.get(x, -1)
     if bucket != -1:
-        reward += 0
         trackers["bucket_tracker"][bucket] += 1
         if bucket == target_bucket:
-           reward += 10
+           reward += 1
+        else:
+            reward -= 0
+
     return (state_action_pairs, reward, stars_collected, bucket, step_counter[0])
 
 def initialize_trackers(include_q_table=False):

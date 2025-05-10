@@ -178,59 +178,59 @@ def learn(
     width,
     height,
     episodes
-):    
-    # skip if not enough experiences yet
+):
+    # === 1. Skip learning until buffer has enough samples ===
     if len(replay_buffer) < batch_size:
         return
 
-    # compute beta (importance sampling adjustment) for this episode
-    beta_start = 0.4
-    beta_end = 1.0
+    # === 2. Schedule importance-sampling correction (beta increases from beta_start to 1) ===
+    beta_start = 0  # Lower values bias toward high-priority samples
+    beta_end = 1.0    # 1.0 means fully corrected importance sampling
     beta = beta_start + (beta_end - beta_start) * (episode / episodes)
 
-    # sample batch from buffer
+    # === 3. Sample prioritized batch with importance-sampling weights ===
     batch, indices, weights = replay_buffer.sample(batch_size, beta)
-    weights = weights.unsqueeze(1).to(device)
+    weights = weights.unsqueeze(1).to(device)  # shape: [batch_size, 1]
 
-    # separate experience components
+    # === 4. Unpack experience components ===
     state_batch = torch.cat([preprocess_state(s, width, height) for s, _, _, _, _ in batch]).to(device)
     action_batch = torch.tensor([a for _, a, _, _, _ in batch], dtype=torch.int64).unsqueeze(1).to(device)
     reward_batch = torch.tensor([r for _, _, r, _, _ in batch], dtype=torch.float32).unsqueeze(1).to(device)
     done_batch = torch.tensor([d for _, _, _, _, d in batch], dtype=torch.float32).unsqueeze(1).to(device)
 
-    # preprocess next states and mask out terminal transitions
+    # === 5. Process next states, skipping terminal ones ===
     next_states = [s for _, _, _, s, _ in batch]
     non_final_mask = torch.tensor([s is not None for s in next_states], dtype=torch.bool)
     non_final_next_states = torch.cat([preprocess_state(s, width, height) for s in next_states if s is not None]).to(device)
 
-    # compute current Q-values
+    # === 6. Q-values for current actions ===
     q_values = online_net(state_batch).gather(1, action_batch)
 
-    # compute target Q-values
+    # === 7. Compute target Q-values using Double DQN logic ===
     target_q_values = torch.zeros(batch_size, 1, device=device)
     if non_final_next_states.size(0) > 0:
         next_actions = online_net(non_final_next_states).argmax(dim=1).unsqueeze(1)
         target_q = target_net(non_final_next_states).gather(1, next_actions)
         target_q_values[non_final_mask] = target_q.detach()
 
-    # Bellman target
+    # === 8. Bellman update: expected Q = r + γ * Q'(s', a') ===
     expected_q = reward_batch + discount_factor * target_q_values * (1 - done_batch)
 
-    # TD error and loss
+    # === 9. Compute TD error and apply importance sampling correction ===
     td_errors = q_values - expected_q
     loss = (td_errors.pow(2) * weights).mean()
 
-    # optimize
+    # === 10. Optimize online network ===
     optimizer.zero_grad()
     loss.backward()
     torch.nn.utils.clip_grad_norm_(online_net.parameters(), max_norm=5.0)
     optimizer.step()
 
-    # === Soft Target Network Update ===
+    # === 11. Periodically soft update target network ===
     if total_decision_steps[0] % target_update_frequency == 0:
         update_target_network(online_net, target_net, soft_update_alpha)
 
-    # update priorities
+    # === 12. Update priorities in replay buffer ===
     replay_buffer.update_priorities(indices, td_errors.squeeze().detach())
 
     return loss.item()
