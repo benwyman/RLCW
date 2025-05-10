@@ -27,7 +27,7 @@ softmax_temp = 5.0          # only used for softmax policy
 
 # train agent
 target_bucket = 2  # the bucket the agent should aim for
-map_name = "easy"
+map_name = "hard"
 
 grid, buckets, width, height = build_board(map_name, trackers)
 

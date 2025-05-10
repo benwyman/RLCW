@@ -98,6 +98,7 @@ for episode in range(episodes):
             "total_decision_steps": total_decision_steps,
             "target_update_frequency": target_update_frequency,
             "episode": episode,
+            "q_model": online_net
         },
         # visualize=False  # set True to debug
         # visualize=(episode == episodes - 1)

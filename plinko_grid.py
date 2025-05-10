@@ -16,9 +16,9 @@ from board_builder import build_board
 sns.set(style="whitegrid")
 
 # === Parameter grid ===
-alpha_values = [0.01, 0.05, 0.1, 0.3, 0.5]
-gamma_values = [0.90, 0.95, 0.98, 0.99, 0.999]
-decay_values = [0.95, 0.98, 0.99, 0.995, 0.999]
+alpha_values = [0.01, 0.1, 0.5]
+gamma_values = [0.90, 0.98, 0.999]
+decay_values = [0.95, 0.99, 0.995, 0.999]
 policy_types = ["epsilon", "softmax"]
 
 # === Static config ===

@@ -311,6 +311,8 @@ def drop_ball(
             last_state = state
             last_action = action
             extra["total_decision_steps"][0] += 1
+            if extra["total_decision_steps"][0] % extra["target_update_frequency"] == 0:
+                extra["update_target_network"](extra["q_model"], extra["target_net"], extra["soft_update_alpha"])
 
             if grid.get((action, y)) == '⬒':
                 num_buttons_pressed = sum(1 for pos in pressed_buttons if pos in trackers["button_tracker"])
