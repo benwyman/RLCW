@@ -11,6 +11,7 @@ LEDGE_TILES = {'_', '⤓', '↥', '⬒', '☆'}
 VALID_MOVE_TILES = {'O', '_', '\\', '/', '⤓', '↥', '⬒', '█', '^', 'Φ', '☆'}
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 STEP_PENALTY = 0.005
+MAX_STEPS = 200
 
 # === Q-Network Definition ===
 class QNetwork(nn.Module):
@@ -121,7 +122,6 @@ def handle_blocks(grid, x, y, width, height, exploration_rate, tracker_dict, q_m
     while True:
         action = choose_action(state, q_model, exploration_rate, width, height, grid)
         step_counter[0] += 1
-
         x = action
         log_transition(state, action, reward, state, extra)
         reward -= STEP_PENALTY # step penalty
@@ -209,10 +209,12 @@ def learn(
     # === 7. Compute target Q-values using Double DQN logic ===
     target_q_values = torch.zeros(batch_size, 1, device=device)  # initialize target Q-values to zero
     if non_final_next_states.size(0) > 0:  # if there are any non-terminal next states
-        next_actions = online_net(non_final_next_states).argmax(dim=1).unsqueeze(1)  # pick best next action using online net
-        target_q = target_net(non_final_next_states).gather(1, next_actions)  # get target Q-values from target net
-        target_q_values[non_final_mask] = target_q.detach()  # assign to valid indices (detached from computation graph)
-
+        # next_actions = online_net(non_final_next_states).argmax(dim=1).unsqueeze(1)  # pick best next action using online net
+        # target_q = target_net(non_final_next_states).gather(1, next_actions)  # get target Q-values from target net
+        # target_q_values[non_final_mask] = target_q.detach()  # assign to valid indices (detached from computation graph)
+        next_actions = online_net(non_final_next_states).argmax(dim=1).unsqueeze(1)
+        target_q = online_net(non_final_next_states).gather(1, next_actions)  # ← use online net instead
+        target_q_values[non_final_mask] = target_q.detach()
     # === 8. Bellman update: expected Q = r + γ * Q'(s', a') ===
     expected_q = reward_batch + discount_factor * target_q_values * (1 - done_batch)  # compute Bellman target
 
@@ -234,8 +236,9 @@ def learn(
 
 # === Soft Target Network Update ===
 def update_target_network(online_model, target_model, alpha):
-    for target_param, online_param in zip(target_model.parameters(), online_model.parameters()):
-        target_param.data.copy_(alpha * online_param.data + (1 - alpha) * target_param.data)
+    pass
+    #for target_param, online_param in zip(target_model.parameters(), online_model.parameters()):
+    #    target_param.data.copy_(alpha * online_param.data + (1 - alpha) * target_param.data)
 
 # === Experience and Learning Helpers ===
 
@@ -305,6 +308,8 @@ def drop_ball(
             if last_state is not None:
                 log_transition(last_state, last_action, reward, state, extra)
                 step_counter[0] += 1
+                if step_counter[0] >= MAX_STEPS:
+                    return (reward, -1, stars_collected, step_counter[0])
             last_state = state
             last_action = action
             extra["total_decision_steps"][0] += 1

@@ -6,7 +6,7 @@ import math
 
 LEDGE_TILES = {'_', '⤓', '↥', '⬒', '☆'}
 VALID_MOVE_TILES = {'O', '_', '\\', '/', '⤓', '↥', '⬒', '█', '^', 'Φ', '☆'}
-STEP_PENALTY = 0.005
+STEP_PENALTY = 0.01
 MAX_STEPS = 15000
 
 def choose_action(state, q_table, epsilon, width, grid, policy="epsilon", temperature=1.0):
@@ -216,7 +216,7 @@ def drop_ball(
                     grid[(action, y)] = '_'
                     row_y = trackers.get("button_to_block_map", {}).get((action, y))
                     if row_y is not None:
-                        reward += 1
+                        reward += 10
                         unmark_block(grid, row_y, trackers["blocks"])
                     trackers["button_tracker"][(action, y)] += 1
                     pressed_buttons.add((action, y))
@@ -230,7 +230,7 @@ def drop_ball(
                 grid[(action, y)] = '_'  # convert to normal ledge
                 pressed_buttons.add((action, y))  # optional for state tracking
                 stars_collected.add((action, y))  # track that it was picked up
-                reward += 1
+                reward += 10
                 trackers["ledge_tracker"][state] -= 1
                 continue  # stay on same row
 
@@ -258,7 +258,7 @@ def drop_ball(
         # Spike
         if tile == '^':
             trackers["spike_tracker"][y] += 1
-            reward -= 10
+            reward -= 100
             done = True
             return (state_action_pairs, reward, stars_collected, None, step_counter[0])
 
@@ -274,9 +274,9 @@ def drop_ball(
     if bucket != -1:
         trackers["bucket_tracker"][bucket] += 1
         if bucket == target_bucket:
-           reward += 10
+           reward += 100
         else:
-            reward -= 10
+            reward -= 100
 
     return (state_action_pairs, reward, stars_collected, bucket, step_counter[0])
 

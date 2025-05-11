@@ -27,7 +27,7 @@ softmax_temp = 5.0          # only used for softmax policy
 
 # train agent
 target_bucket = 2  # the bucket the agent should aim for
-map_name = "hard"
+map_name = "easy"
 
 grid, buckets, width, height = build_board(map_name, trackers)
 
@@ -95,3 +95,9 @@ print_training_stats(
     trackers,
     q_table
 )
+
+for state, actions in q_table.items():
+    print(f"State: {state}")
+    for action in sorted(actions):  # sort actions (columns) numerically
+        print(f"  Action: {action} -> Q: {actions[action]:.3f}")
+

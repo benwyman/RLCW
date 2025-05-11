@@ -13,6 +13,8 @@ from state_utils_deep import (
 )
 from board_builder import build_board
 from visualization import visualize_grid
+import seaborn as sns  # for nice styling
+sns.set(style="whitegrid")  # apply seaborn style
 
 # === Device Configuration ===
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -21,7 +23,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 learning_rate = 1e-5               # optimizer learning rate
 discount_factor = 0.99              # gamma: importance of future rewards
 exploration_rate = 1.0              # epsilon: initial exploration probability
-exploration_decay = 0.999            # decay per episode
+exploration_decay = 0.999           # decay per episode
 min_exploration = 0.01              # lower bound for epsilon
 episodes = 1000                     # total training episodes
 initial_free_exploration = 0        # episode cutoff for exploration decay
@@ -37,7 +39,7 @@ batch_size = 32                    # number of experiences to sample
 
 # === Training Objectives ===
 target_bucket = 2                  # desired goal bucket
-map_name = "hard"
+map_name = "easy"
 
 # === Initialize Stats and Environment ===
 trackers = initialize_trackers()   # global stat trackers for board elements
@@ -46,6 +48,7 @@ most_recent_rewards = deque(maxlen=100)  # sliding window for recent episode rew
 total_stars_collected = 0          # tracks cumulative star count
 total_decision_steps = [0]         # decision step count (mutable list)
 episode_losses = []                # average loss per episode (for plotting)
+episode_accuracy = []  # track success (target bucket hit) per episode
 
 # === Initialize Game Board ===
 grid, buckets, width, height = build_board(map_name, trackers)
@@ -110,6 +113,7 @@ for episode in range(episodes):
     total_stars_collected += len(stars_collected)
     episode_rewards_history.append(episode_final_reward)
     most_recent_rewards.append(episode_final_reward)
+    episode_accuracy.append(1 if final_bucket == target_bucket else 0)  # success = 1, failure = 0
 
     # perform batch learning steps after episode
     losses = []
@@ -172,3 +176,45 @@ plt.title("Training Progress")
 plt.legend()
 plt.grid(True)
 plt.show()
+
+def smooth(series, weight=0.9):
+    smoothed = []
+    last = series[0]
+    for point in series:
+        smoothed_val = last * weight + (1 - weight) * point
+        smoothed.append(smoothed_val)
+        last = smoothed_val
+    return smoothed
+
+# smooth and plot reward
+plt.figure(figsize=(10, 5))
+plt.plot(smooth(episode_rewards_history), label="Smoothed Reward")
+plt.xlabel("Episode")
+plt.ylabel("Reward")
+plt.title("Smoothed Reward over Time")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.savefig("smoothed_reward.png")
+
+# optionally: smooth and plot loss
+plt.figure(figsize=(10, 5))
+plt.plot(smooth(episode_losses), label="Smoothed Loss", color="orange")
+plt.xlabel("Episode")
+plt.ylabel("Loss")
+plt.title("Smoothed Loss over Time")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.savefig("smoothed_loss.png")
+
+# smooth and plot accuracy
+plt.figure(figsize=(10, 5))
+plt.plot(smooth(episode_accuracy), label="Smoothed Accuracy", color="green")
+plt.xlabel("Episode")
+plt.ylabel("Target Bucket Accuracy")
+plt.title("Smoothed Accuracy over Time")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.savefig("smoothed_accuracy.png")
